@@ -109,6 +109,7 @@ you can give a project on one host its own list (for example `ops-server2`).
 
 1. Create a Postgram API key that is allowed the `task` type, with read and write access. A key
    restricted to memories can list zero tasks without an error, and then fails when you add one.
+   Use one key per host (for example `paseo-tasks-<host>`), so you can revoke one without the others.
 2. On each host running a Paseo daemon, create `~/.paseo/postgram-tasks.json` (or
    `$PASEO_HOME/postgram-tasks.json`), readable only by the daemon's user:
 
