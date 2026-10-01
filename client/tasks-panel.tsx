@@ -1,10 +1,11 @@
 import type { PluginWorkspacePanelProps } from "@getpaseo/plugin/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { ScrollView, TextInput, useToast } from "@getpaseo/plugin/client/react-native";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
 import { describeError } from "./describe-error.ts";
 import { IconButton } from "./icon-button.tsx";
+import { ListPicker } from "./list-picker.tsx";
 import { TaskCard } from "./task-card.tsx";
 import { ContinueDialog } from "./continue-dialog.tsx";
 import { StartDialog } from "./start-dialog.tsx";
@@ -16,8 +17,8 @@ import { useLaunchOptions } from "./use-launch-options.ts";
 import { useRunHere } from "./use-run-here.ts";
 import { useTasks } from "./use-tasks.ts";
 import { completeTask, createTask, updateTask } from "../shared/contracts.ts";
+import { selectionTags } from "../shared/filter.ts";
 import type { TaskRun } from "../shared/runs.ts";
-import { normalizeTaskKey } from "../shared/task-key.ts";
 import {
   groupTasks, isIsoDate, moveOptions, SECTION_ORDER, startsCollapsed, STATUS_LABELS, taskTitle,
   type MoveOption, type SectionStatus, type Task,
@@ -29,7 +30,7 @@ export function TasksPanel(props: PluginWorkspacePanelProps) {
   const styles = useMemo(() => makeStyles(props.theme), [props.theme]);
   const toast = useToast();
   const project = useProject(props.workspaceId);
-  const { state, reload, replace } = useTasks(project?.taskKey ?? null);
+  const { state, availableTags, reload, replace } = useTasks(project?.taskKey ?? null, project?.filterTags ?? []);
   const create = useRpc(createTask);
   const update = useRpc(updateTask);
   const complete = useRpc(completeTask);
@@ -38,15 +39,13 @@ export function TasksPanel(props: PluginWorkspacePanelProps) {
 
   const [draft, setDraft] = useState("");
   const [collapsed, setCollapsed] = useState<Partial<Record<SectionStatus | "done", boolean>>>({});
-  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [pickingList, setPickingList] = useState(false);
   const [scheduling, setScheduling] = useState<{ task: Task; date: string } | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   // The New workspace dialog keeps the exact task it was opened with (the editor passes the
   // version it just saved), so a refresh can't swap in older text.
   const [startingTask, setStartingTask] = useState<Task | null>(null);
   const [continuing, setContinuing] = useState<{ task: Task; run: TaskRun } | null>(null);
-  // Enter both submits and blurs the key field; save once.
-  const savingKey = useRef(false);
   // Dragging a card onto another section moves it there.
   const drag = useCardDrag<DropKey, Task>({
     resolveDrop(task, target) {
@@ -66,7 +65,8 @@ export function TasksPanel(props: PluginWorkspacePanelProps) {
   async function add() {
     const content = draft.trim();
     if (!content || !project) return;
-    const result = await create({ taskKey: project.taskKey, content });
+    // A new task carries the tags the list is narrowed to, so it shows up in it.
+    const result = await create({ taskKey: project.taskKey, tags: project.filterTags, content });
     if (!result.ok) return toast.error(describeError(result.error));
     setDraft("");
     replace(result.value);
@@ -108,19 +108,14 @@ export function TasksPanel(props: PluginWorkspacePanelProps) {
     props.navigation?.openAgent({ agentId: run.agentId, serverId: run.serverId });
   }
 
-  async function saveTaskKey(value: string) {
-    if (!project || savingKey.current) return;
-    savingKey.current = true;
-    try {
-      const key = normalizeTaskKey(value);
-      if (key !== project.taskKey) {
-        const ok = await project.saveProjectSettings({ taskKey: key || undefined, defaultProfileId: project.defaultProfileId });
-        if (!ok) toast.error("Couldn't save the task key.");
-      }
-      setEditingKey(null);
-    } finally {
-      savingKey.current = false;
-    }
+  async function selectList(taskKey: string, filterTags: string[]) {
+    if (!project) return;
+    const ok = await project.saveProjectSettings({
+      taskKey,
+      filterTags: filterTags.length ? filterTags : undefined,
+      defaultProfileId: project.defaultProfileId,
+    });
+    if (!ok) toast.error("Couldn't save the task list.");
   }
 
   // A slot under a section's heading that opens while a card is dragged over the section.
@@ -245,25 +240,22 @@ export function TasksPanel(props: PluginWorkspacePanelProps) {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.label}>Task list</Text>
-          {editingKey === null ? (
-            <>
-              <Text style={styles.value}>project:{project.taskKey}</Text>
-              <Pressable accessibilityRole="button" onPress={() => setEditingKey(project.taskKey)}>
-                <Text style={styles.link}>Change</Text>
-              </Pressable>
-            </>
-          ) : (
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
-              value={editingKey}
-              autoFocus
-              autoCapitalize="none"
-              onChangeText={setEditingKey}
-              onSubmitEditing={() => void saveTaskKey(editingKey)}
-              onBlur={() => void saveTaskKey(editingKey)}
-            />
-          )}
+          <Text style={[styles.value, { flexShrink: 1 }]}>{selectionTags(project.taskKey, project.filterTags).join(" · ")}</Text>
+          <Pressable accessibilityRole="button" onPress={() => setPickingList(!pickingList)}>
+            <Text style={styles.link}>{pickingList ? "Close" : "Change"}</Text>
+          </Pressable>
         </View>
+        {pickingList ? (
+          <ListPicker
+            styles={styles}
+            taskKey={project.taskKey}
+            defaultKey={project.defaultTaskKey}
+            filterTags={project.filterTags}
+            availableTags={availableTags}
+            onSelect={(taskKey, filterTags) => void selectList(taskKey, filterTags)}
+            onClose={() => setPickingList(false)}
+          />
+        ) : null}
       </View>
 
       {addBox}

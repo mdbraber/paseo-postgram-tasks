@@ -30,8 +30,9 @@ export default function contribute(client: PluginClientContext) {
         // settingsRpc(id).read returns { status, revision, values } with untyped values.
         const read = await rpc(settingsRpc(projectSettings.id).read, {});
         const parsed = read.status === "ready" ? projectSettings.schema.safeParse(read.values) : null;
-        const stored = parsed?.success ? parsed.data.projects[workspace.projectId]?.taskKey : undefined;
-        const result = await rpc(createTask, { taskKey: resolveTaskKey(stored, workspace.projectRootPath), content });
+        const stored = parsed?.success ? parsed.data.projects[workspace.projectId] : undefined;
+        const taskKey = resolveTaskKey(stored?.taskKey, workspace.projectRootPath);
+        const result = await rpc(createTask, { taskKey, tags: stored?.filterTags, content });
         if (!result.ok) throw new Error(describeError(result.error));
         openPanel(TASKS_PANEL_ID, { location });
       },

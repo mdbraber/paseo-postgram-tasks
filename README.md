@@ -101,9 +101,23 @@ archived.
 ## How tasks are linked to projects
 
 Each task is tagged `project:<task key>`. The task key defaults to the project's folder name,
-lowercased, with other characters turned into dashes. Change it with **Change** at the top of the
-panel. Keys are stored per host, so projects with the same key on different hosts share a list, and
-you can give a project on one host its own list (for example `ops-server2`).
+lowercased, with other characters turned into dashes.
+
+**Change** at the top of the panel opens a picker for which tasks the panel shows:
+
+- **Project** lists every task key that already has tasks in Postgram, plus the folder's own key.
+  Choose one, or type a key that has no tasks yet under **Other project…**.
+- **Only tasks tagged** lists the other tags found on that project's tasks. Tick any number of them
+  to narrow the list to tasks that carry all of them, for example `project:ops` with `server2` for
+  only the ops tasks about that server. Type a tag that no task has yet under **Other tag…**.
+  Choosing another project clears the ticked tags.
+
+Each choice applies straight away, and the header shows it (`project:ops · server2`). New tasks,
+from the box or from `/task`, get the project tag and the ticked tags, so they appear in the list
+you are looking at. The ten Done tasks are the most recent ones that match.
+
+The choice is stored per host, so projects with the same key on different hosts share a list, and
+you can give a project on one host its own list or its own narrowing.
 
 ## Setup
 

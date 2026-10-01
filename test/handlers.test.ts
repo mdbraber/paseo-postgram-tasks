@@ -14,6 +14,7 @@ function fakeClient(overrides: Partial<PostgramClient> = {}) {
   const completed: string[] = [];
   const client: PostgramClient = {
     list: async () => ok([base]),
+    listAll: async () => ok([base]),
     listByStatus: async () => ok([]),
     get: async () => ok(base),
     create: async ({ content, tags }) => ok({ ...base, content, tags }),
@@ -161,4 +162,46 @@ test("a status change retries once after a version conflict", async () => {
   const result = await handlersFor(client).activate({ id: "t1" });
   assert.ok(result.ok);
   assert.equal(attempts, 2);
+});
+
+test("narrows the list to tasks carrying every tag, before picking recent done tasks", async () => {
+  const done = (i: number, tags: string[]): Task => ({ ...base, id: `d${i}`, status: "done", tags, updatedAt: `2026-09-${String(10 + i).padStart(2, "0")}T00:00:00Z` });
+  const { client } = fakeClient({
+    list: async () => ok([
+      { ...base, id: "plain" },
+      { ...base, id: "naggon", tags: ["project:ops", "naggon", "todo"] },
+      { ...base, id: "spiff", tags: ["project:ops", "spiff", "todo"] },
+      done(0, ["project:ops", "naggon", "todo"]),
+      ...Array.from({ length: 12 }, (_, i) => done(i + 1, ["project:ops"])),
+    ]),
+  });
+  const result = await handlersFor(client).list({ taskKey: "ops", tags: ["naggon", "todo"] });
+  assert.ok(result.ok);
+  if (result.ok) {
+    assert.deepEqual(result.value.open.map((t) => t.id), ["naggon"]);
+    assert.deepEqual(result.value.done.map((t) => t.id), ["d0"], "an old done task still shows when narrowed to it");
+  }
+});
+
+test("lists the tags to narrow by from all of the project's tasks", async () => {
+  const { client } = fakeClient({
+    list: async () => ok([{ ...base, tags: ["project:ops", "naggon", "todo"] }, { ...base, id: "t2", tags: ["project:ops", "spiff"] }]),
+  });
+  const result = await handlersFor(client).list({ taskKey: "ops", tags: ["naggon"] });
+  assert.ok(result.ok);
+  if (result.ok) assert.deepEqual(result.value.tags, ["naggon", "spiff", "todo"]);
+});
+
+test("creates with the narrowing tags after the project tag", async () => {
+  let created: { content: string; tags: string[] } | undefined;
+  const { client } = fakeClient({ create: async (input) => { created = input; return ok(base); } });
+  await handlersFor(client).create({ taskKey: "ops", tags: ["naggon", " ", "project:blink"], content: "Fix backups" });
+  assert.deepEqual(created, { content: "Fix backups", tags: ["project:ops", "naggon"] });
+});
+
+test("lists the project keys found on any task", async () => {
+  const { client } = fakeClient({
+    listAll: async () => ok([base, { ...base, id: "t2", tags: ["project:blink"] }, { ...base, id: "t3", tags: ["todo"] }]),
+  });
+  assert.deepEqual(await handlersFor(client).projects(), ok(["blink", "ops"]));
 });

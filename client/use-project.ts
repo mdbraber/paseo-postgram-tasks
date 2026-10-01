@@ -1,7 +1,8 @@
 import { useSettings, useWorkspace } from "@getpaseo/plugin/client";
 import { useCallback } from "react";
-import { projectSettings, type ProjectSettings } from "../shared/settings.ts";
-import { resolveTaskKey } from "../shared/task-key.ts";
+import { projectSettings, withProjectSettings, type ProjectSettings } from "../shared/settings.ts";
+import { cleanTags } from "../shared/filter.ts";
+import { defaultTaskKey, resolveTaskKey } from "../shared/task-key.ts";
 
 export interface ProjectInfo {
   projectId: string;
@@ -9,6 +10,10 @@ export interface ProjectInfo {
   projectKind: "git" | "non_git" | "directory";
   displayName: string;
   taskKey: string;
+  /** The key the project's folder gives it. */
+  defaultTaskKey: string;
+  /** Only tasks carrying all of these tags are shown. */
+  filterTags: string[];
   defaultProfileId: string | undefined;
   saveProjectSettings(next: ProjectSettings): Promise<boolean>;
 }
@@ -25,8 +30,7 @@ export function useProject(workspaceId: string): ProjectInfo | null {
   const saveProjectSettings = useCallback(
     async (next: ProjectSettings) => {
       if (settings.status !== "ready" || !workspace) return false;
-      const projects = { ...settings.values.projects, [workspace.projectId]: next };
-      return settings.save({ ...settings.values, projects }, settings.revision);
+      return settings.save(withProjectSettings(settings.values, workspace.projectId, next), settings.revision);
     },
     [settings, workspace],
   );
@@ -36,6 +40,8 @@ export function useProject(workspaceId: string): ProjectInfo | null {
   return {
     ...workspace,
     taskKey: resolveTaskKey(stored.taskKey, workspace.projectRootPath),
+    defaultTaskKey: defaultTaskKey(workspace.projectRootPath),
+    filterTags: cleanTags(stored.filterTags ?? []),
     defaultProfileId: stored.defaultProfileId,
     saveProjectSettings,
   };

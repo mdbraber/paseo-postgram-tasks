@@ -10,6 +10,7 @@ export interface TaskPatch {
 
 export interface PostgramClient {
   list(tag: string): Promise<Result<Task[]>>;
+  listAll(): Promise<Result<Task[]>>;
   listByStatus(status: TaskStatus): Promise<Result<Task[]>>;
   get(id: string): Promise<Result<Task>>;
   create(input: { content: string; tags: string[] }): Promise<Result<Task>>;
@@ -99,6 +100,7 @@ export function createPostgramClient(config: PostgramConfig, fetchImpl: typeof f
 
   return {
     list: (tag) => listWhere({ tags: tag }),
+    listAll: () => listWhere({}),
     listByStatus: (status) => listWhere({ status }),
     get: (id) => entity("GET", `/api/entities/${encodeURIComponent(id)}`),
     create: ({ content, tags }) =>

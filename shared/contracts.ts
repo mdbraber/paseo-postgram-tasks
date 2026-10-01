@@ -14,15 +14,18 @@ export const TaskPatchSchema = z.object({
 
 export const listTasks = defineRpc({
   name: "tasks.list",
-  input: z.object({ taskKey: z.string().min(1) }),
-  output: resultSchema(z.object({ open: z.array(TaskSchema), done: z.array(TaskSchema) })),
+  input: z.object({ taskKey: z.string().min(1), tags: z.array(z.string()).optional() }),
+  output: resultSchema(z.object({ open: z.array(TaskSchema), done: z.array(TaskSchema), tags: z.array(z.string()) })),
 });
+
+// The task keys that already have tasks, for the list picker.
+export const listProjects = defineRpc({ name: "tasks.projects", input: z.object({}), output: resultSchema(z.array(z.string())) });
 
 export const getTask = defineRpc({ name: "tasks.get", input: z.object({ id: z.string() }), output: TaskResult });
 
 export const createTask = defineRpc({
   name: "tasks.create",
-  input: z.object({ taskKey: z.string().min(1), content: z.string() }),
+  input: z.object({ taskKey: z.string().min(1), tags: z.array(z.string()).optional(), content: z.string() }),
   output: TaskResult,
 });
 

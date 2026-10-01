@@ -1,4 +1,5 @@
 import type { PostgramClient, TaskPatch } from "./postgram.ts";
+import { cleanTags, matchesTags, narrowingTags, projectKeys, selectionTags } from "../shared/filter.ts";
 import { fail, ok, type Result } from "../shared/result.ts";
 import { latestRun, readRuns, statusAfterArchive, statusAfterTurn, withRun, type TaskRun } from "../shared/runs.ts";
 import { projectTag } from "../shared/task-key.ts";
@@ -39,24 +40,32 @@ export function createHandlers(getClient: GetClient) {
   }
 
   return {
-    list: ({ taskKey }: { taskKey: string }) =>
+    // `tags` narrows the project's list; the tags to choose from come from the whole project.
+    list: ({ taskKey, tags = [] }: { taskKey: string; tags?: string[] }) =>
       withClient(async (client) => {
         const all = await client.list(projectTag(taskKey));
         if (!all.ok) return all;
-        const done = all.value
+        const shown = all.value.filter((task) => matchesTags(task, cleanTags(tags)));
+        const done = shown
           .filter((task) => task.status === "done")
           .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
           .slice(0, DONE_LIMIT);
-        const open = all.value.filter((task) => task.status !== "done" && task.status !== "archived");
-        return ok({ open, done });
+        const open = shown.filter((task) => task.status !== "done" && task.status !== "archived");
+        return ok({ open, done, tags: narrowingTags(all.value) });
+      }),
+
+    projects: () =>
+      withClient(async (client) => {
+        const all = await client.listAll();
+        return all.ok ? ok(projectKeys(all.value)) : all;
       }),
 
     get: ({ id }: { id: string }) => withClient((client) => client.get(id)),
 
-    create: ({ taskKey, content }: { taskKey: string; content: string }) => {
+    create: ({ taskKey, tags = [], content }: { taskKey: string; tags?: string[]; content: string }) => {
       const text = content.trim();
       if (!text) return Promise.resolve(fail<Task>("invalid", "A task needs some text"));
-      return withClient((client) => client.create({ content: text, tags: [projectTag(taskKey)] }));
+      return withClient((client) => client.create({ content: text, tags: selectionTags(taskKey, cleanTags(tags)) }));
     },
 
     update: ({ id, version, patch }: { id: string; version: number; patch: TaskPatch }) => {

@@ -2,7 +2,7 @@ import type { PluginHookContext, PluginServerContext } from "@getpaseo/plugin/se
 import { configPath, loadPostgramConfig } from "./server/config.ts";
 import { createHandlers } from "./server/handlers.ts";
 import { createPostgramClient } from "./server/postgram.ts";
-import { activateTask, completeTask, createTask, getTask, listTasks, recordRun, updateTask } from "./shared/contracts.ts";
+import { activateTask, completeTask, createTask, getTask, listProjects, listTasks, recordRun, updateTask } from "./shared/contracts.ts";
 import { ok } from "./shared/result.ts";
 import { TASK_LABEL } from "./shared/runs.ts";
 import { projectSettings } from "./shared/settings.ts";
@@ -22,6 +22,7 @@ export default function contribute(server: PluginServerContext) {
   });
 
   server.handle(listTasks, handlers.list);
+  server.handle(listProjects, handlers.projects);
   server.handle(getTask, handlers.get);
   server.handle(createTask, handlers.create);
   server.handle(updateTask, handlers.update);

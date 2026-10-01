@@ -45,6 +45,15 @@ test("lists every page for a tag", async () => {
   assert.equal(calls[0]!.auth, "Bearer secret");
 });
 
+test("lists all tasks without a tag filter", async () => {
+  const { impl, calls } = fakeFetch(() => ({ status: 200, body: { items: [entity("t1"), entity("t2", { tags: ["project:blink"] })], total: 2 } }));
+  const result = await createPostgramClient(config, impl).listAll();
+  assert.equal(result.ok && result.value.length, 2);
+  const url = new URL(calls[0]!.url);
+  assert.equal(url.searchParams.get("type"), "task");
+  assert.equal(url.searchParams.has("tags"), false);
+});
+
 test("maps entities to tasks, defaulting a null status to inbox", async () => {
   const { impl } = fakeFetch(() => ({ status: 200, body: { entity: entity("t1", { status: null, metadata: null }) } }));
   const result = await createPostgramClient(config, impl).get("t1");
